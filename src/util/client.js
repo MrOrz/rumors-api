@@ -14,10 +14,21 @@ export function processMeta({
   found, // for mget queries
   _score, // for search queries
 
+  highlight, // search result highlighting. Should be {<fieldName>: ['...']}
+
+  inner_hits, // nested query search result highlighting.
+
   sort, // cursor when sorted
 }) {
   if (found || _score !== undefined) {
-    return { id, ...source, _cursor: sort, _score };
+    return {
+      id,
+      ...source,
+      _cursor: sort,
+      _score,
+      highlight,
+      inner_hits,
+    };
   }
   return null; // not found
 }

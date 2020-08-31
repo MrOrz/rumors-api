@@ -8,6 +8,7 @@ import {
   GraphQLFloat,
 } from 'graphql';
 
+import Highlights from './models/Highlights';
 import client from 'util/client';
 
 // https://www.graph.cool/docs/tutorials/designing-powerful-apis-with-graphql-query-parameters-aing7uech3
@@ -243,6 +244,18 @@ export async function defaultResolveEdges(
       sort: before
         ? reverseSortArgs(searchContext.body.sort)
         : searchContext.body.sort,
+      highlight: {
+        order: 'score',
+        fields: {
+          text: {
+            number_of_fragments: 1, // Return only 1 piece highlight text
+            fragment_size: 200, // word count of highlighted fragment
+            type: 'plain',
+          },
+        },
+        pre_tags: ['<HIGHLIGHT>'],
+        post_tags: ['</HIGHLIGHT>'],
+      },
     },
   });
 
@@ -250,11 +263,15 @@ export async function defaultResolveEdges(
     nodes.reverse();
   }
 
-  return nodes.map(({ _score: score, _cursor, ...node }) => ({
-    node,
-    cursor: getCursor(_cursor),
-    score,
-  }));
+  return nodes.map(
+    ({ _score: score, highlight, inner_hits, _cursor, ...node }) => ({
+      node,
+      cursor: getCursor(_cursor),
+      score,
+      highlight,
+      inner_hits,
+    })
+  );
 }
 
 async function defaultResolveLastCursor(
@@ -297,6 +314,28 @@ async function defaultResolveFirstCursor(
   return firstNode && getCursor(firstNode._cursor);
 }
 
+async function defaultResolveHighlights(edge) {
+  const {
+    highlight: { text },
+    inner_hits,
+  } = edge;
+
+  const hyperlinks = inner_hits?.hyperlinks.hits.hits?.map(
+    ({
+      _source: { url },
+      highlight: { 'hyperlinks.title': title, 'hyperlinks.summary': summary },
+    }) => ({
+      url,
+      title: title ? title[0] : undefined,
+      summary: summary ? summary[0] : undefined,
+    })
+  );
+
+  // Elasticsearch highlight returns an array because it can be multiple fragments,
+  // We directly returns first element(text, title, summary) here because we set number_of_fragments to 1.
+  return { text: text ? text[0] : undefined, hyperlinks };
+}
+
 // All search
 //
 export function createConnectionType(
@@ -308,6 +347,7 @@ export function createConnectionType(
     resolveEdges = defaultResolveEdges,
     resolveLastCursor = defaultResolveLastCursor,
     resolveFirstCursor = defaultResolveFirstCursor,
+    resolveHighlights = defaultResolveHighlights,
   } = {}
 ) {
   return new GraphQLObjectType({
@@ -327,6 +367,10 @@ export function createConnectionType(
               node: { type: nodeType },
               cursor: { type: GraphQLString },
               score: { type: GraphQLFloat },
+              highlight: {
+                type: Highlights,
+                resolve: resolveHighlights,
+              },
             },
           })
         ),

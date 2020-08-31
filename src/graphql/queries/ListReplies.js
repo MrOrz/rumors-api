@@ -106,6 +106,26 @@ export default {
               },
             },
           },
+          inner_hits: {
+            highlight: {
+              order: 'score',
+              fields: {
+                'hyperlinks.title': {
+                  number_of_fragments: 1, // Return only 1 piece highlight text
+                  fragment_size: 200, // word count of highlighted fragment
+                  type: 'plain',
+                },
+                'hyperlinks.summary': {
+                  number_of_fragments: 1, // Return only 1 piece highlight text
+                  fragment_size: 200, // word count of highlighted fragment
+                  type: 'plain',
+                },
+              },
+              require_field_match: false,
+              pre_tags: ['<HIGHLIGHT>'],
+              post_tags: ['</HIGHLIGHT>'],
+            },
+          },
         }
       );
 
